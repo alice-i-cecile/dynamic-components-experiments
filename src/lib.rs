@@ -145,3 +145,92 @@ fn ref_mut_entity_commands() {
 
     world.run_system_once(my_system);
 }
+
+/// We can clean up the `EntityCommands` pattern above,
+/// by using an extension method on `EntityCommands`.
+#[test]
+fn entity_commands_simple_extension() {
+    use bevy::ecs::system::{EntityCommands, RunSystemOnce};
+
+    trait EntityCommandsExt {
+        fn spawn_bundle_by_strategy(&mut self, strategy: ComponentStrategy) -> &mut Self;
+    }
+
+    impl EntityCommandsExt for EntityCommands<'_, '_, '_> {
+        fn spawn_bundle_by_strategy(&mut self, strategy: ComponentStrategy) -> &mut Self {
+            match strategy {
+                ComponentStrategy::A => self.insert(A),
+                ComponentStrategy::B => self.insert(B),
+                ComponentStrategy::AAndB => self.insert(A).insert(B),
+            }
+        }
+    }
+
+    let mut world = World::new();
+
+    fn my_system(mut commands: Commands) {
+        let mut entity_a = commands.spawn_empty();
+        entity_a.spawn_bundle_by_strategy(ComponentStrategy::A);
+
+        let mut entity_b = commands.spawn_empty();
+        entity_b.spawn_bundle_by_strategy(ComponentStrategy::B);
+
+        let mut entity_a_and_b = commands.spawn_empty();
+        entity_a_and_b.spawn_bundle_by_strategy(ComponentStrategy::AAndB);
+    }
+
+    world.run_system_once(my_system);
+}
+
+/// However, this isn't very flexible: now we need a different extension method for every place we want to use this pattern!
+///
+/// Instead, let's pass in a closure into our extension method,
+/// which controls which builder we're using.
+///
+/// Elaborate setup, but very flexible and quite comforable to use.
+#[test]
+fn entity_commands_closure_extension() {
+    use bevy::ecs::system::{EntityCommands, RunSystemOnce};
+
+    trait EntityCommandsExt<Config> {
+        fn spawn_dynamic_bundle(
+            &mut self,
+            config: Config,
+            f: impl FnOnce(Config, &mut Self),
+        ) -> &mut Self;
+    }
+
+    impl<Config> EntityCommandsExt<Config> for EntityCommands<'_, '_, '_> {
+        fn spawn_dynamic_bundle(
+            &mut self,
+            config: Config,
+            f: impl FnOnce(Config, &mut Self),
+        ) -> &mut Self {
+            f(config, self);
+            self
+        }
+    }
+
+    fn my_dynamic_builder(strategy: ComponentStrategy, commands: &mut EntityCommands<'_, '_, '_>) {
+        match strategy {
+            ComponentStrategy::A => commands.insert(A),
+            ComponentStrategy::B => commands.insert(B),
+            ComponentStrategy::AAndB => commands.insert(A).insert(B),
+        };
+    }
+
+    let mut world = World::new();
+
+    fn my_system(mut commands: Commands) {
+        let mut entity_a = commands.spawn_empty();
+        entity_a.spawn_dynamic_bundle(ComponentStrategy::A, my_dynamic_builder);
+
+        let mut entity_b = commands.spawn_empty();
+        entity_b.spawn_dynamic_bundle(ComponentStrategy::B, my_dynamic_builder);
+
+        let mut entity_a_and_b = commands.spawn_empty();
+        entity_a_and_b.spawn_dynamic_bundle(ComponentStrategy::AAndB, my_dynamic_builder);
+    }
+
+    world.run_system_once(my_system);
+}
