@@ -188,6 +188,9 @@ fn entity_commands_simple_extension() {
 /// which controls which builder we're using.
 ///
 /// Elaborate setup, but very flexible and quite comforable to use.
+///
+/// Critically, by setting your `Config` type to something more complex,
+/// we can pass in things like `ResMut<Assets<Mesh>>` or `Handle<ColorMaterial>`.
 #[test]
 fn entity_commands_closure_extension() {
     use bevy::ecs::system::{EntityCommands, RunSystemOnce};
